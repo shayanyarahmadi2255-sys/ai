@@ -1,3 +1,4 @@
+
 import { env } from "cloudflare:workers";
 import OAuthProvider from "@cloudflare/workers-oauth-provider";
 import { McpServer } from "@modelcontextprotocol/server";
@@ -30,7 +31,6 @@ async function getGoogleAccessToken(props: Props): Promise<string> {
 
 	const data = (await response.json()) as {
 		access_token?: string;
-		error?: string;
 	};
 
 	if (!response.ok || !data.access_token) {
@@ -61,48 +61,24 @@ async function youtubeRequest(path: string, props: Props) {
 	return response.json();
 }
 
-
-
-	server.registerTool(
-		"youtube_analytics_report",
-		{
-			description: "Get daily YouTube channel analytics including views, watch time and subscribers gained.",
-			inputSchema: z.object({
-				startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-				endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-			}),
-		},
-		async ({ startDate, endDate }) => {
-			try {
-				if (!props) throw new Error("Google account not connected.");
-
-				if (startDate > endDate) {
-					throw new Error("Start date must be before end date.");
-				}
-
-				const params = new URLSearchParams({
-					ids: "channel==MINE",
-					startDate,
-					endDate,
-					metrics: "views,estimatedMinutesWatched,averageViewDuration,subscribersGained",
-					dimensions: "day",
-					sort: "day",
-			function createServer() {
+function createServer() {
 	const server = new McpServer({
 		name: "Cinecut YouTube Assistant",
 		version: "1.0.0",
 	});
 
-	
+	const props = getMcpAuthContext()?.props as Props | undefined;
 
 	server.registerTool(
 		"youtube_get_channel",
 		{
-			description: "Get the authenticated YouTube channel information and statistics.",
+			description: "Get authenticated YouTube channel information and statistics.",
 		},
 		async () => {
 			try {
-				if (!props) throw new Error("Google account not connected.");
+				if (!props) {
+					throw new Error("Google account not connected.");
+				}
 
 				const data = await youtubeRequest(
 					"youtube/v3/channels?part=snippet,statistics,contentDetails&mine=true",
@@ -136,10 +112,10 @@ async function youtubeRequest(path: string, props: Props) {
 			}),
 		},
 		async ({ maxResults }) => {
-	try {
-	const props = getMcpAuthContext()?.props as Props | undefined;
-		if (!props) throw new Error("Google account not connected.");
-			if (!props) throw new Error("Google account not connected.");
+			try {
+				if (!props) {
+					throw new Error("Google account not connected.");
+				}
 
 				const channel = await youtubeRequest(
 					"youtube/v3/channels?part=contentDetails&mine=true",
@@ -174,7 +150,35 @@ async function youtubeRequest(path: string, props: Props) {
 				};
 			}
 		},
-	);	});
+	);
+
+	server.registerTool(
+		"youtube_analytics_report",
+		{
+			description: "Get daily YouTube analytics including views, watch time and subscribers gained.",
+			inputSchema: z.object({
+				startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+				endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+			}),
+		},
+		async ({ startDate, endDate }) => {
+			try {
+				if (!props) {
+					throw new Error("Google account not connected.");
+				}
+
+				if (startDate > endDate) {
+					throw new Error("Start date must be before end date.");
+				}
+
+				const params = new URLSearchParams({
+					ids: "channel==MINE",
+					startDate,
+					endDate,
+					metrics: "views,estimatedMinutesWatched,averageViewDuration,subscribersGained",
+					dimensions: "day",
+					sort: "day",
+				});
 
 				const report = await youtubeRequest(
 					`youtubeAnalytics/v2/reports?${params.toString()}`,
